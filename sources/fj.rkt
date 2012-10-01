@@ -62,6 +62,32 @@ as described in Benjamin C. Pierce's "Types and Programming Languages"
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
+; Class lookup by name from the class table
+(define-metafunction FJ
+  class-lookup : CL C -> CL  
+  
+  [(class-lookup (CL CL_1 ...) C) 
+   CL
+   (where (class C extends C_1((C_2 f) ...) K (M ...)) CL)]  
+  [(class-lookup ((class C_1 extends C_2((C_3 f) ...) K (M ...)) CL_1 ...) C) 
+   (class-lookup (CL_1 ...) C)])
+
+
+(define-metafunction FJ
+  fields : CT C -> ((C f) ...)
+  
+  [(fields (CT Object)) ()]
+  [(fields (CT C))
+   ,(append (term (((C_2 f_2) ...) ((C_3 f_3) ...))))
+   (where (class C extends C_1((C_2 f_2) ...) K (M ...)) 
+          (class-lookup CT C))
+   (where ((C_3 f_3) ...)
+          (fields CT C_1))])
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Valid method overriding
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
