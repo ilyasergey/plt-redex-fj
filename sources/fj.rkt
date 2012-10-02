@@ -524,7 +524,7 @@ anymore.
 (test-equal (judgment-holds (typeof ,class-table () ,term3 C) C)
             '(Pair))
 
-; Non well-typed term
+; Ill-typed term
 (test-equal (judgment-holds (typeof ,class-table () ,term4 C) C)
             '())
 
