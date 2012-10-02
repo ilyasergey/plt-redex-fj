@@ -19,10 +19,10 @@ as described in Benjamin C. Pierce's
 (define-language FJ
   
   ; Class declarations
-  (CL (class C extends C ((C f) ...) K (M ...)))
+  (CL (class C extends C ((C f) ...) K M ...))
   
   ; Constructor declarations
-  (K (C ((C f) ...) (super (f ...)) ((C f) ...)))
+  (K (C ((C f) ...) (super (f ...)) ((f f) ...)))
   
   ; Method declarations
   (M (C m ((C x) ...) t))
@@ -30,12 +30,12 @@ as described in Benjamin C. Pierce's
   ; Terms
   (t x 
      (lkp t f) 
-     (call t m (t ...)) 
-     (new C (t ...)) 
+     (call t m t ...) 
+     (new C t ...) 
      (cast C t))
   
   ; Values
-  (v (new C (v ...)))
+  (v (new C v ...))
   
   ; Class table
   (CT (CL ...))
@@ -43,9 +43,9 @@ as described in Benjamin C. Pierce's
   ; Evaluation contexts
   (E hole 
      (lkp E f) 
-     (call E m (t ...))
-     (call v m (v ... E t ...))
-     (new C (v ... E t ...))
+     (call E m t ...)
+     (call v m v ... E t ...)
+     (new C v ... E t ...)
      (cast C E))
   
   ; Field names
@@ -82,7 +82,8 @@ anymore.
   [(where (class C extends D any ...) (class-lookup CT C))
    (<: CT D D_1)   
    ---------------
-   (<: CT C D_1)])
+   (<: CT C D_1)]
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Auxiliary meta-functions
@@ -90,33 +91,25 @@ anymore.
 
 ;; Class lookup by name from the class table
 (define-metafunction FJ
-  class-lookup : CL C -> (or/c CL #f)
+  class-lookup : CT C -> any
   
-  [(class-lookup (CL CL_1 ...) C) 
-   CL
-   (where (class C extends D ((C_2 f) ...) K (M ...)) CL)]  
-  [(class-lookup (any CL_1 ...) C) 
+  [(class-lookup ((class C any ...) CL_1 ...) C) 
+   (class C any ...)]  
+  [(class-lookup (CL_0 CL_1 ...) C) 
    (class-lookup (CL_1 ...) C)]
   [(class-lookup () C) #f])
 
 ;; Fields lookup
 (define-metafunction FJ
-  fields : CT C -> ((C f) ...)
+  fields : CT C -> (f ...)
   
-  [(fields (CT Object)) ()]
-  [(fields (CT C))
-   ,(append (term (((C_2 f_2) ...) ((D_3 f_3) ...))))
-   (where (class C extends D ((C_2 f_2) ...) K (M ...)) 
+  [(fields CT Object) ()]
+  [(fields CT C)
+   (f_2 ... f_3 ...)
+   (where (class C extends D ((C_2 f_2) ...) any ...) 
           (class-lookup CT C))
    (where ((D_3 f_3) ...)
           (fields CT D))])
-
-; Trivial equality predicate
-(define-judgment-form FJ
-  #:mode (eq I I) 
-  #:contract (eq f f)
-  [--------
-   (eq f f)])
 
 ;; Checking if a field is in a field list
 (define (zip p q) (map list p q))
@@ -131,16 +124,16 @@ anymore.
   [(mtype CT m C)
    ; Map parameter entries to types (i.e., take car)
    (,(map car (term ((B_1 x) ...))) B)
-   (where (class C extends D ((C_2 f_2) ...) K (M ...))
+   (where (class C extends D ((C_2 f_2) ...) K M ...)
           (class-lookup CT C))
    (where (B m ((B_1 x) ...) t)
-          (method-in m (M ...)))]
+          (method-in m M ...))]
   ; m is not defined in C
   [(mtype CT m C)
    (mtype CT m D)
-   (where (class C extends D ((C_2 f_2) ...) K (M ...))
+   (where (class C extends D ((C_2 f_2) ...) K M ...)
           (class-lookup CT C))
-   (where #f (method-in m (M ...)))])
+   (where #f (method-in m M ...))])
 
 ;; Method body lookup 
 (define-metafunction FJ
@@ -149,31 +142,25 @@ anymore.
   [(mbody CT m C)
    ; Map parameter entries to parameter names (i.e., take cadr)
    (,(map cadr (term ((B_1 x) ...))) t)
-   (where (class C extends D ((C_2 f_2) ...) K (M ...))
+   (where (class C extends D ((C_2 f_2) ...) K M ...)
           (class-lookup CT C))
    (where (B m ((B_1 x) ...) t)
-          (method-in m (M ...)))]
+          (method-in m M ...))]
   ; m is not defined in C
   [(mbody CT m C)
    (mbody CT m D)
-   (where (class C extends D ((C_2 f_2) ...) K (M ...))
+   (where (class C extends D ((C_2 f_2) ...) K M ...)
           (class-lookup CT C))
-   (where #f (method-in m (M ...)))])
+   (where #f (method-in m M ...))])
 
 ;; Auxiliary functions for method lookup
 (define-metafunction FJ
-  method-name : m M -> boolean?
-  [(method-name m (C m_1 ((C_1 x) ...) t))
-   ,(equal? (term m) (term m_1))])
-
-(define-metafunction FJ
-  method-in : m (M ...) -> (or/c M #f)
-  [(method-in m (M M_1 ...))
-   M
-   (where #t (method-name m M))]
-  [(method-in m (M M_1 ...)) 
-   (method-in m (M_1 ...))]
-  [(method-in m ()) #f])
+  method-in : m M ... -> any
+  [(method-in m (C m any ...) M_1 ...)
+   (C m any ...)]
+  [(method-in m M M_1 ...) 
+   (method-in m M_1 ...)]
+  [(method-in m any) #f])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Valid method overriding
@@ -219,28 +206,89 @@ anymore.
 (define red
   (reduction-relation
    FJ
-   #:domain (CT (in-hole E t))
+   #:domain (t CT)
    
-   (--> (CT (in-hole E (lkp (new C (v ...)) f_i)))
-        (CT (in-hole E v_i))
+   (--> ((in-hole E (lkp (new C v ...) f_i)) CT)
+        ((in-hole E v_i) CT)
         "(E-ProjNew)"
-        (where ((C_1 f_1) ...) (fields CT C))
-        (where/hidden (f_i i) ,(field-in (term f_i) (term ((C_1 f_1) ...))))
-        (where/hidden v_i ,(list-ref (term i) (term (v ...)))))
+        (where (f_1 ...) (fields CT C))
+        (where/hidden v_i ,(cadr (assoc (term f_i) (zip (term (f_1 ...)) (term (v ...))))))
+        )
    
-   (--> (CT (in-hole E (call (new C (v ...)) m (v_1 ...))))
-        (CT (in-hole E (subst-many (x ...) (v_1 ...) 
-                                   (subst this (new C (v ...)) t_0))))
+   (--> ((in-hole E (call (new C v ...) m v_1 ...)) CT)
+        ((in-hole E (subst-many (x ...) (v_1 ...) 
+                                (subst this (new C v ...) t_0))) CT)
         "(E-InvkNew)"
         (where ((x ...) t_0) (mbody CT m C)))
    
-   (--> (CT (in-hole E (cast D (new C (v ...)))))
-        (CT (in-hole E (new C (v ...))))
+   (--> ((in-hole E (cast D (new C v ...))) CT)
+        ((in-hole E (new C v ...)) CT)
         "(E-CastNew)"
-        (judgment-holds (<: C D CT)))))
+        (judgment-holds (<: CT C D)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Working example
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;(CL (class C extends C ((C f) ...) K M ...))
+;(K (C ((C f) ...) (super (f ...)) ((f f) ...)))
+;(M (C m ((C x) ...) t))
+
+
+(define class-table
+  (term 
+   (
+    (class A extends Object 
+      () 
+      (A () (super ()) ()) 
+      )
+    
+    (class B extends Object 
+      () 
+      (B () (super ()) ()) 
+      )
+    
+    (class Pair extends Object 
+      ;; Class body
+      ; Fields
+      ((Object fst)
+       (Object snd))
+      
+      ; Constructor
+      (P ((Object fst) (Object snd))
+         (super ())
+         ((fst fst)
+          (snd snd)))
+      
+      ; Method definitions
+      (Pair setfst ((Object newfst))
+            (new Pair newfst (lkp this snd))))
+    )
+    ))
+
+
+(define example0
+  `((cast Object (new A)) 
+    ,class-table))
+
+
+(define example1
+  `((lkp (new Pair (new A) (new B)) snd) ,class-table))
+
+
+(define example2
+  `((call (new Pair (new A) (new B)) setfst (new B)) ,class-table))
+
+(define example3
+  `((cast Pair (new Pair (new Pair (new A) (new B)) (new A))) ,class-table))
+
+(define example4
+  `((lkp (lkp (cast Pair (new Pair (new Pair (new A) (new B)) (new A))) fst) snd) ,class-table))
+
+
+;(test-->> red
+;          `(,class-table ,example1)
+;          `(,class-table (new B ())))
+
 
