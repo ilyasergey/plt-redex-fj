@@ -47,6 +47,11 @@ as described in Benjamin C. Pierce's
      (call v m v ... E t ...)
      (new C v ... E t ...)
      (cast C E))
+     
+  ; Typing environments
+  (Γ ((x C) ...))
+  
+  (Bool #t #f)     
   
   ; Field names
   (f variable-not-otherwise-mentioned)
@@ -100,25 +105,19 @@ anymore.
 
 ;; Fields lookup
 (define-metafunction FJ
-  fields : CT C -> (f ...)
+  fields : CT C -> ((C f) ...)
   
   [(fields CT Object) ()]
   [(fields CT C)
-   (f_2 ... f_3 ...)
+   ((C_2 f_2) ... (D_3 f_3) ...)
    (where (class C extends D ((C_2 f_2) ...) any ...) 
           (class-lookup CT C))
    (where ((D_3 f_3) ...)
           (fields CT D))])
 
-;; Checking if a field is in a field list
-(define (zip p q) (map list p q))
-
-(define (field-in f fs) 
-  (assoc f (zip fs (range (length fs)))))
-
 ;; Method type lookup 
 (define-metafunction FJ
-  mtype : CT m C -> ((C ...) C)
+  mtype : CT m C -> any
   ; m is defined in C
   [(mtype CT m C)
    ; Map parameter entries to types (i.e., take car)
@@ -132,7 +131,9 @@ anymore.
    (mtype CT m D)
    (where (class C extends D ((C_2 f_2) ...) K M ...)
           (class-lookup CT C))
-   (where #f (method-in m M ...))])
+   (where #f (method-in m M ...))]
+  ; m is undefined: we hit Object
+  [(mtype CT m Object) #f])
 
 ;; Method body lookup 
 (define-metafunction FJ
@@ -167,11 +168,16 @@ anymore.
 
 (define-judgment-form FJ
   ; all constituents are inputs
-  #:mode (override I I I I) 
-  #:contract (override m D (C ...) C)
-  [(where ((C ...) C_0) (mtype m D))
-   ---------------------------------
-   (override m D (C ...) C_0)])
+  #:mode (override I I I I I) 
+  #:contract (override CT m D (C ...) C)
+  
+  [(where #f (mtype CT m D))
+   ------------------------------
+   (override CT m D (C ...) C_0)]
+  
+  [(where ((C ...) C_0) (mtype CT m D))
+   ------------------------------------
+   (override CT m D (C ...) C_0)])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -210,7 +216,7 @@ anymore.
    (--> ((in-hole E (lkp (new C v ...) f_i)) CT)
         ((in-hole E v_i) CT)
         "(E-ProjNew)"
-        (where (f_1 ...) (fields CT C))
+        (where ((C_1 f_1) ...) (fields CT C))
         (where/hidden v_i ,(cadr (assoc (term f_i) (term ((f_1 v) ...)))))
         )
    
@@ -224,6 +230,139 @@ anymore.
         ((in-hole E (new C v ...)) CT)
         "(E-CastNew)"
         (judgment-holds (<: CT C D)))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Type checking
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+; Environment extension
+(define-metafunction FJ
+  extend : Γ x C -> Γ
+  [(extend ((x_0 C_0) ... (x_i C_i) (x_i+1 C_i+1) ...) x_i C)
+   ((x_0 C_0) ... (x_i C) (x_i+1 C_i+1) ...)]
+  [(extend ((x_1 C_1) ...) x_0 C_0)
+      ((x_0 C_0) (x_1 C_1) ...)])
+
+; Environment lookup
+(define-metafunction FJ
+  lookup : Γ x -> C
+  [(lookup ((x_0 C_0) ... (x_i C_i) (x_i+1 C_i+1) ...) x_i) 
+   C_i])
+
+
+;; Typing rules
+
+(define-judgment-form FJ
+  #:mode (typeof I I I O)
+  #:contract (typeof CT Γ t C)
+   
+  ; (T-Var)
+  [(where C (lookup Γ x))
+   ----------------------
+   (typeof CT Γ x C)]
+  
+  ; (T-Field)
+  [(typeof CT Γ t_0 C_0)
+   (where ((C f) ...) (fields CT C_0))
+   (where ((C_1 f_1) ... (C_i f_i) (C_i+1 f_i+1) ...) ((C f) ...))
+   -------------------------------
+   (typeof CT Γ (lkp t_0 f_i) C_i)]
+  
+  ; (T-Invk)
+  [(typeof CT Γ t_0 C_0)
+   (where ((D ...) C) (mtype CT m C_0))
+   (typeof CT Γ t B) ...
+   (<: CT B D) ...
+   ------------------------------------
+   (typeof CT Γ (call t_0 m t ...) C)]
+  
+  ; (T-New)
+  [(where ((D f) ...) (fields CT C))
+   (typeof CT Γ t B) ...
+   (<: CT B D) ...
+   ---------------------------------
+   (typeof CT Γ (new C t ...) C)]
+  
+  ; (T-UCast)
+  [(typeof CT Γ t_0 D)
+   (<: CT D C)
+   ----------------------------
+   (typeof CT Γ (cast C t_0) C)]
+  
+  ; (T-DCast)
+  [(typeof CT Γ t_0 D)
+   (<: CT C D)
+   (where #f (c-equal C D))
+   ----------------------------
+   (typeof CT Γ (cast C t_0) C)]
+
+  ; (T-SCast)
+  [(typeof CT Γ t_0 D)
+   (where #t (non-related CT C D))
+   ; A stupid warning should be emitted here
+   ----------------------------------------
+   (typeof CT Γ (cast C t_0) C)])
+
+; Method typing
+(define-judgment-form FJ
+  #:mode (method-ok I I I)
+  #:contract (method-ok CT M C)
+  
+  ; [M OK in C]
+  [(where (class C extends D ((C_2 f_2) ...) K M ...)
+          (class-lookup CT C))
+   (where (C_0 m ((C_1 x) ...) t_0)
+          (method-in m M ...))
+   (override CT m D (C_1 ...) C_0)
+   (typeof CT ((this C) (x C_1) ...) t_0 B_0)
+   (<: CT B_0 C_0)
+   -------------------------------------------------
+   (method-ok CT (C_0 m ((C_1 x) ...) t_0) C)])
+
+; Class typing
+(define-judgment-form FJ
+  #:mode (class-ok I I)
+  #:contract (class-ok CT CL)
+  
+  ; [C OK]
+  [(where (class C extends D ((C_1 f) ...) K M ...)
+          (class-lookup CT C))
+   (where ((D_1 g) ...) (fields CT D))
+   
+   (where (C ((D_1 g) ... (C_1 f) ...) 
+             (super g ...) (f f) ...) K)
+   
+   (method-ok CT M C) ...
+   -------------------------------------------------------
+   (class-ok CT (class C extends D ((C_1 f) ...) K M ...))])
+  
+; Class table well-formedness
+(define-judgment-form FJ
+  #:mode (class-table-ok I)
+  #:contract (class-table-ok CT)
+  
+  [(where (CL ...) CT)
+   (class-ok CT CL) ...
+   --------------------
+   (class-table-ok CT)])
+
+; Auxiliary equivalende predicate
+(define-metafunction FJ
+  c-equal : C C -> Bool
+  [(c-equal C C) #t]
+  [(c-equal C D) #f])
+
+(define-metafunction FJ
+  non-related : CT C C -> Bool
+  [(non-related CT C D) 
+   #f
+   (judgment-holds (<: CT C D))]
+  [(non-related CT C D) 
+   #f
+   (judgment-holds (<: CT D C))]
+  [(non-related CT C D) #t])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -243,7 +382,7 @@ anymore.
       () 
       (B () (super)) 
       )
-    
+        
     (class Pair extends Object 
       ;; Class body
       ; Fields
@@ -251,10 +390,10 @@ anymore.
        (Object snd))
       
       ; Constructor
-      (P ((Object fst) (Object snd))
-         (super)
-         (fst fst)
-         (snd snd))
+      (Pair ((Object fst) (Object snd))
+            (super)
+            (fst fst)
+            (snd snd))
       
       ; Method definitions
       (Pair setfst ((Object newfst))
@@ -264,26 +403,41 @@ anymore.
 
 
 ; Programs
+
+(define term0 (term (cast Object (new A))))
+
+(define term1 (term (lkp (new Pair (new A) (new B)) fst)))
+
+(define term2 (term (call (new Pair (new A) (new B)) setfst (new B))))
+
+(define term3 (term (cast Pair (new Pair (new Pair (new A) (new B)) (new A)))))
+
+(define term4 (term (lkp (lkp (new Pair (new Pair (new A) (new B)) (new A)) fst) snd)))
+
+(define term5 (term (lkp (cast Pair (lkp (cast Pair (new Pair (new Pair (new A) (new B)) (new A))) fst)) snd)))
+
+
+; Examples
 (define example0
-  `((cast Object (new A)) 
-    ,class-table))
+  `(,term0 ,class-table))
 
 (define example1
-  `((lkp (new Pair (new A) (new B)) fst) ,class-table))
-
+  `(,term1 ,class-table)) 
 
 (define example2
-  `((call (new Pair (new A) (new B)) setfst (new B)) ,class-table))
+  `(,term2 ,class-table))
 
 (define example3
-  `((cast Pair (new Pair (new Pair (new A) (new B)) (new A))) ,class-table))
+  `(,term3 ,class-table))
 
 (define example4
-  `((lkp (lkp (cast Pair (new Pair (new Pair (new A) (new B)) (new A))) fst) snd) ,class-table))
+  `(,term4 ,class-table))
 
+(define example5
+  `(,term4 ,class-table))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Tests
+;; Runtime semantics tests
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
@@ -296,7 +450,6 @@ anymore.
           example2
           `((new Pair (new B) (new B)) ,class-table))
 
-
 (test-->> red
           example3
           `((new Pair
@@ -307,4 +460,40 @@ anymore.
           example4
           `((new B) ,class-table))
 
+(test-->> red
+          example5
+          `((new B) ,class-table))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Type checking tests
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Class table is well-formed
+(test-equal (judgment-holds (class-table-ok ,class-table))
+            #t)
+
+
+; Typing programs
+; C is a pattern variable, so the set of admissible types is inferred
+(test-equal (judgment-holds (typeof ,class-table () ,term0 C) C)
+            '(Object))
+
+(test-equal (judgment-holds (typeof ,class-table () ,term1 C) C)
+            '(Object))
+
+(test-equal (judgment-holds (typeof ,class-table () ,term2 C) C)
+            '(Pair))
+
+(test-equal (judgment-holds (typeof ,class-table () ,term3 C) C)
+            '(Pair))
+
+; Non well-typed term
+(test-equal (judgment-holds (typeof ,class-table () ,term4 C) C)
+            '())
+
+(test-equal (judgment-holds (typeof ,class-table () ,term5 C) C)
+            '(Object))
+
+(test-equal (judgment-holds (typeof ,class-table () (new A) C) C)
+            '(A))
