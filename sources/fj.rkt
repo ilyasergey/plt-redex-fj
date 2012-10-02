@@ -156,10 +156,8 @@ anymore.
 ;; Auxiliary functions for method lookup
 (define-metafunction FJ
   method-in : m M ... -> any
-  [(method-in m (C m any ...) M_1 ...)
+  [(method-in m M_0 ... (C m any ...) M_1 ...)
    (C m any ...)]
-  [(method-in m M M_1 ...) 
-   (method-in m M_1 ...)]
   [(method-in m any) #f])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -327,13 +325,9 @@ anymore.
   #:contract (class-ok CT CL)
   
   ; [C OK]
-  [(where (class C extends D ((C_1 f) ...) K M ...)
-          (class-lookup CT C))
-   (where ((D_1 g) ...) (fields CT D))
-   
-   (where (C ((D_1 g) ... (C_1 f) ...) 
-             (super g ...) (f f) ...) K)
-   
+  [(where ((D_1 f_1) ...) (fields CT D))   
+   (where (C ((C_1 f) ... (D_1 f_1) ...) 
+             (super f_1 ...) (f f) ...) K)   
    (method-ok CT M C) ...
    -------------------------------------------------------
    (class-ok CT (class C extends D ((C_1 f) ...) K M ...))])
@@ -398,8 +392,24 @@ anymore.
       ; Method definitions
       (Pair setfst ((Object newfst))
             (new Pair newfst (lkp this snd))))
+    
+    (class Triple extends Pair 
+      ;; Class body
+      ; Fields
+      ((A thrd))
+      
+      ; Constructor
+      (Triple ((A thrd) (Object fst) (Object snd))
+              (super fst snd)
+              (thrd thrd))
+      
+      ; Method definitions
+      (Triple setthrd ((A newthrd))
+              (new Triple newthrd (lkp this fst) (lkp this snd)))
+      )
+    
     )
-    ))
+   ))
 
 
 ; Programs
@@ -415,6 +425,12 @@ anymore.
 (define term4 (term (lkp (lkp (new Pair (new Pair (new A) (new B)) (new A)) fst) snd)))
 
 (define term5 (term (lkp (cast Pair (lkp (cast Pair (new Pair (new Pair (new A) (new B)) (new A))) fst)) snd)))
+
+(define term6 (term (lkp (new Triple (new A) (new B) (new A)) fst)))
+
+(define term7 (term (lkp (cast Pair (new Triple (new A) (new B) (new A))) fst)))
+
+(define term8 (term (lkp (new Triple (new A) (new B) (new A)) thrd)))
 
 
 ; Examples
@@ -434,7 +450,16 @@ anymore.
   `(,term4 ,class-table))
 
 (define example5
-  `(,term4 ,class-table))
+  `(,term5 ,class-table))
+
+(define example6
+  `(,term6 ,class-table))
+
+(define example7
+  `(,term7 ,class-table))
+
+(define example8
+  `(,term8 ,class-table))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Runtime semantics tests
@@ -464,6 +489,17 @@ anymore.
           example5
           `((new B) ,class-table))
 
+(test-->> red
+          example6
+          `((new B) ,class-table))
+
+(test-->> red
+          example7
+          `((new B) ,class-table))
+
+(test-->> red
+          example8
+          `((new A) ,class-table))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Type checking tests
@@ -495,5 +531,12 @@ anymore.
 (test-equal (judgment-holds (typeof ,class-table () ,term5 C) C)
             '(Object))
 
-(test-equal (judgment-holds (typeof ,class-table () (new A) C) C)
+(test-equal (judgment-holds (typeof ,class-table () ,term6 C) C)
+            '(Object))
+
+(test-equal (judgment-holds (typeof ,class-table () ,term7 C) C)
+            '(Object))
+
+(test-equal (judgment-holds (typeof ,class-table () ,term8 C) C)
             '(A))
+
