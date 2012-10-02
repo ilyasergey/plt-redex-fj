@@ -140,7 +140,6 @@ anymore.
   mbody : CT m C -> ((x ...) t)
   ; m is defined in C
   [(mbody CT m C)
-   ; Map parameter entries to parameter names (i.e., take cadr)
    ((x ...) t)
    (where (class C extends D ((C_2 f_2) ...) K M ...)
           (class-lookup CT C))
@@ -215,8 +214,8 @@ anymore.
         ((in-hole E v_i) CT)
         "(E-ProjNew)"
         (where ((C_1 f_1) ...) (fields CT C))
-        (where/hidden v_i ,(cadr (assoc (term f_i) (term ((f_1 v) ...)))))
-        )
+        (where/hidden ((f_0 v_0) ... (f_i v_i) (f_i+1 v_i+1) ...) 
+                      ((f_1 v) ...)))
    
    (--> ((in-hole E (call (new C v ...) m v_1 ...)) CT)
         ((in-hole E (subst-many (x ...) (v_1 ...) 
