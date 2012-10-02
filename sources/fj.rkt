@@ -75,14 +75,14 @@ anymore.
 
 (define-judgment-form FJ
   #:mode (<: I I I) 
-  #:contract (<: C C CT)
+  #:contract (<: CT C C)
   [----------
-   (<: C C CT)]
+   (<: CT C C)]
   
   [(where (class C extends D any ...) (class-lookup CT C))
-   (<: D D_1 CT)   
+   (<: CT D D_1)   
    ---------------
-   (<: C D_1 CT)])
+   (<: CT C D_1)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Auxiliary meta-functions
@@ -94,7 +94,7 @@ anymore.
   
   [(class-lookup (CL CL_1 ...) C) 
    CL
-   (where (class C extends D((C_2 f) ...) K (M ...)) CL)]  
+   (where (class C extends D ((C_2 f) ...) K (M ...)) CL)]  
   [(class-lookup (any CL_1 ...) C) 
    (class-lookup (CL_1 ...) C)]
   [(class-lookup () C) #f])
@@ -119,17 +119,10 @@ anymore.
    (eq f f)])
 
 ;; Checking if a field is in a field list
-(define-judgment-form FJ
-  #:mode (field-in I I) 
-  #:contract (field-in f ((C f) ...))
-  [(eq f f_1)
-   ------------------------------
-   (field-in f ((C f_1) any ...))]
-  
-  [(field-in f ((C_1 f_1) ...))
-   --------------------------------------
-   (field-in f ((C_0 f_0) (C_1 f_1) ...))])
+(define (zip p q) (map list p q))
 
+(define (field-in f fs) 
+  (assoc f (zip fs (range (length fs)))))
 
 ;; Method type lookup 
 (define-metafunction FJ
@@ -196,12 +189,58 @@ anymore.
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Value substitution
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define-metafunction FJ
+  subst : x v any -> any
+  ; Substitute variable
+  [(subst x v x) v]
+  ; Distribute substitution
+  [(subst x v (any_2 ...)) 
+   ((subst x v any_2) ...)]
+  ; Do not substitute anything else
+  [(subst x v any_2) any_2])
+
+(define-metafunction FJ
+  subst-many : (x ...) (v ...) any -> any    
+  ; Multiple substitution
+  [(subst-many (x_1 x_2 ...) (v_1 v_2 ...) any_3)
+   (subst x_1 v_1 (subst-many (x_2 ...) (v_2 ...) any_3))]
+  ; All other cases
+  [(subst-many () () any) any])
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Reduction semantics of FJ
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;(define red
-;  (reduction-relation
-;   FJ
-;   #:domain (E CT)
-;   ))
+;; All congruence rules are subsumed by evaluation contexts
+(define red
+  (reduction-relation
+   FJ
+   #:domain (CT (in-hole E t))
+   
+   (--> (CT (in-hole E (lkp (new C (v ...)) f_i)))
+        (CT (in-hole E v_i))
+        "(E-ProjNew)"
+        (where ((C_1 f_1) ...) (fields CT C))
+        (where/hidden (f_i i) ,(field-in (term f_i) (term ((C_1 f_1) ...))))
+        (where/hidden v_i ,(list-ref (term i) (term (v ...)))))
+   
+   (--> (CT (in-hole E (call (new C (v ...)) m (v_1 ...))))
+        (CT (in-hole E (subst-many (x ...) (v_1 ...) 
+                                   (subst this (new C (v ...)) t_0))))
+        "(E-InvkNew)"
+        (where ((x ...) t_0) (mbody CT m C)))
+   
+   (--> (CT (in-hole E (cast D (new C (v ...)))))
+        (CT (in-hole E (new C (v ...))))
+        "(E-CastNew)"
+        (judgment-holds (<: C D CT)))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Working example
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
