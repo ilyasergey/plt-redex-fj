@@ -82,10 +82,9 @@ anymore.
   [(where (class C extends D any ...) (class-lookup CT C))
    (<: CT D D_1)   
    ---------------
-   (<: CT C D_1)]
-  )
+   (<: CT C D_1)])
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Auxiliary meta-functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -123,7 +122,7 @@ anymore.
   ; m is defined in C
   [(mtype CT m C)
    ; Map parameter entries to types (i.e., take car)
-   (,(map car (term ((B_1 x) ...))) B)
+   ((B_1 ...) B)
    (where (class C extends D ((C_2 f_2) ...) K M ...)
           (class-lookup CT C))
    (where (B m ((B_1 x) ...) t)
@@ -141,7 +140,7 @@ anymore.
   ; m is defined in C
   [(mbody CT m C)
    ; Map parameter entries to parameter names (i.e., take cadr)
-   (,(map cadr (term ((B_1 x) ...))) t)
+   ((x ...) t)
    (where (class C extends D ((C_2 f_2) ...) K M ...)
           (class-lookup CT C))
    (where (B m ((B_1 x) ...) t)
@@ -212,7 +211,7 @@ anymore.
         ((in-hole E v_i) CT)
         "(E-ProjNew)"
         (where (f_1 ...) (fields CT C))
-        (where/hidden v_i ,(cadr (assoc (term f_i) (zip (term (f_1 ...)) (term (v ...))))))
+        (where/hidden v_i ,(cadr (assoc (term f_i) (term ((f_1 v) ...)))))
         )
    
    (--> ((in-hole E (call (new C v ...) m v_1 ...)) CT)
