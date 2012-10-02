@@ -22,7 +22,7 @@ as described in Benjamin C. Pierce's
   (CL (class C extends C ((C f) ...) K M ...))
   
   ; Constructor declarations
-  (K (C ((C f) ...) (super (f ...)) ((f f) ...)))
+  (K (C ((C f) ...) (super f ...) (f f) ...))
   
   ; Method declarations
   (M (C m ((C x) ...) t))
@@ -228,25 +228,21 @@ anymore.
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Working example
+;; Working examples
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;(CL (class C extends C ((C f) ...) K M ...))
-;(K (C ((C f) ...) (super (f ...)) ((f f) ...)))
-;(M (C m ((C x) ...) t))
-
-
+; Class table
 (define class-table
   (term 
    (
     (class A extends Object 
       () 
-      (A () (super ()) ()) 
+      (A () (super)) 
       )
     
     (class B extends Object 
       () 
-      (B () (super ()) ()) 
+      (B () (super)) 
       )
     
     (class Pair extends Object 
@@ -257,9 +253,9 @@ anymore.
       
       ; Constructor
       (P ((Object fst) (Object snd))
-         (super ())
-         ((fst fst)
-          (snd snd)))
+         (super)
+         (fst fst)
+         (snd snd))
       
       ; Method definitions
       (Pair setfst ((Object newfst))
@@ -268,13 +264,13 @@ anymore.
     ))
 
 
+; Programs
 (define example0
   `((cast Object (new A)) 
     ,class-table))
 
-
 (define example1
-  `((lkp (new Pair (new A) (new B)) snd) ,class-table))
+  `((lkp (new Pair (new A) (new B)) fst) ,class-table))
 
 
 (define example2
@@ -287,8 +283,29 @@ anymore.
   `((lkp (lkp (cast Pair (new Pair (new Pair (new A) (new B)) (new A))) fst) snd) ,class-table))
 
 
-;(test-->> red
-;          `(,class-table ,example1)
-;          `(,class-table (new B ())))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Tests
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(test-->> red
+          example1
+          `((new A) ,class-table))
+
+
+(test-->> red
+          example2
+          `((new Pair (new B) (new B)) ,class-table))
+
+
+(test-->> red
+          example3
+          `((new Pair
+                 (new Pair (new A) (new B))
+                 (new A)) ,class-table))
+
+(test-->> red
+          example4
+          `((new B) ,class-table))
 
 
