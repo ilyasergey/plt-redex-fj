@@ -539,3 +539,64 @@ anymore.
 (test-equal (judgment-holds (typeof ,class-table () ,term8 C) C)
             '(A))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Running observable examples
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; From DrRacket REPL, run, e.g.
+
+; (traces red example4)
+
+; to build the whole trace.
+; "red" is a name of the reduction relation
+; "example4" is a term to execute. Running
+
+; (stepper red example4)
+
+; Makes it possible to step through the execution.
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Colouring ill-formed states
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Some auxiliary predicates to test well-formedness of the execution
+
+;; single-step? : expression -> boolean
+(define (single-step? s)
+  (= (length (apply-reduction-relation red s)) 1))
+
+;; final-state? : state -> boolean
+(define (final-state? s)
+  ; Checks if the term component is a value
+  (value? (car s)))
+
+(define value? (redex-match FJ v))
+
+;; General well-formedness predicate
+(define (is-ok? s)
+  (or (final-state? s) (single-step? s)))
+
+;; Example (well-formed)
+
+; (traces red example4 #:pred is-ok?)
+
+;; Example (ill-formed)
+
+; (traces red `((lkp (lkp (new Pair (new A) (new B)) fst) snd) ,class-table) #:pred is-ok?)
+
+(define (well-typed? s)
+  (let [(term (car s))
+        (ctable (cadr s))]
+    (and 
+     ; Class table OK
+     (judgment-holds (class-table-ok ,ctable))
+     ; Term OK
+     (not (empty? (judgment-holds (typeof ,ctable () ,term C) C))))))
+
+;; Well-typed execution
+
+; (traces red `((lkp (new Pair (new A) (new B)) fst) ,class-table) #:pred well-typed?)
+
+;; Ill-typed term execution
+
+; (traces red `((lkp (lkp (new Pair (new A) (new B)) fst) snd) ,class-table) #:pred well-typed?)
